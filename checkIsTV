@@ -1,0 +1,97 @@
+ 
+ public class ProductCheckUtils {
+    private static final String PAD = "pad";
+    private static final String PHONE = "phone";
+    private static final String TV = "tv";
+    private static final String ENVIRONMENT = "environment";
+ 
+ /**
+     * 判断是否是pad
+     *
+     * @param context
+     * @description 使用ua判断，如果ua无法判断，使用getrprop来判断是否有关于hdmi属性
+     * ，如果有则为tv或盒子，否则为pad或phone。不能保证100%正确。
+     * 考虑性能，以上逻辑仅走一次。判断之后，存入本地shareprefence。
+     * @return
+     */
+    public static boolean checkIsPad(Context context) {
+        boolean ret = false;
+        String s;
+
+        s = PreferencesUtils.getString(context, ENVIRONMENT, null);
+        if (s != null) {//不是第一次，仅仅需要获取最初的结果
+            if (s.equals(PAD)) {
+                ret = true;
+            } else{
+                ret = false;
+            }
+        } else { //第一次
+            WebView mWebView = new WebView(context);
+            String userAgent = mWebView.getSettings().getUserAgentString();
+            Logger.d("ua = " + userAgent);
+
+            String uaLower = userAgent.toLowerCase();
+            if (uaLower.contains("pad") || uaLower.contains("phone") || uaLower.contains("mobile")) {
+                ret = true;
+            } else if (uaLower.contains("box") || uaLower.contains("tv")) {
+                ret = false;
+            } else { //使用hdmi来判断
+                String prop = getAllProperty();
+                Logger.d("prop = " + prop);
+                if (BuildConfig.DEBUG) {
+                    String[] propS = prop.split(" ");
+                    for (int i = 0; i < propS.length; i++) {
+                        Logger.d("i = " + i + ",propS = " + propS[i]);
+                    }
+                }
+                if (prop != null) {
+                    if (prop.contains("hdmi")) {
+                        ret = false;
+                    } else {
+                        ret = true;
+                    }
+                }
+            }
+            if(true == ret)
+                PreferencesUtils.putString(context, ENVIRONMENT, PAD);
+            else
+                PreferencesUtils.putString(context, ENVIRONMENT, TV);
+        }
+
+        return ret;
+    }
+
+    /*
+ * 获取所有的系统属性
+ * */
+    public static String getAllProperty() {
+        String allProp = null;
+        Process proc = null;
+        try {
+            proc = Runtime
+                    .getRuntime()
+                            //.exec("cat /system/build.prop");
+                    .exec("getprop ");
+
+            int ret = proc.waitFor();
+            if(ret!=0)
+                return null;
+            BufferedReader bufReader = new BufferedReader(
+                    new InputStreamReader(
+                            proc.getInputStream()));
+            String str;
+            while( (str = bufReader.readLine()) != null){
+                allProp = allProp + " " + str;
+            }
+        } catch ( Exception e) {
+            e.printStackTrace();
+        }finally {
+            try{
+                proc.destroy();
+            }catch(Exception e){
+
+            }
+        }
+        return allProp;
+    }
+  }
